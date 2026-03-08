@@ -31,6 +31,34 @@ section[data-testid="stSidebar"] {
     background: #010409 !important;
     border-right: 1px solid #21262d;
 }
+/* Nav buttons */
+div[data-testid="stSidebar"] .nav-btn button {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 8px !important;
+    color: #8b949e !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-size: 0.88rem !important;
+    font-weight: 400 !important;
+    text-align: left !important;
+    width: 100% !important;
+    padding: 0.35rem 0.85rem !important;
+    margin-bottom: 2px !important;
+    transition: background 0.15s, color 0.15s !important;
+    box-shadow: none !important;
+}
+div[data-testid="stSidebar"] .nav-btn button:hover {
+    background: #161b22 !important;
+    color: #e6edf3 !important;
+    border: none !important;
+}
+div[data-testid="stSidebar"] .nav-btn-active button {
+    background: #1f2937 !important;
+    border-left: 3px solid #58a6ff !important;
+    border-radius: 0 8px 8px 0 !important;
+    color: #58a6ff !important;
+    font-weight: 600 !important;
+}
 .page-header {
     background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
     border: 1px solid #21262d;
@@ -80,29 +108,41 @@ div[data-baseweb="select"] > div { background: #161b22 !important; border-color:
 
 
 # ── Session state defaults ───────────────────────────────────────────────────
-if "lc_username"   not in st.session_state: st.session_state["lc_username"]   = ""
-if "lc_session"    not in st.session_state: st.session_state["lc_session"]    = ""
-if "lc_csrf"       not in st.session_state: st.session_state["lc_csrf"]       = ""
+if "lc_username" not in st.session_state: st.session_state["lc_username"] = ""
+if "lc_session"  not in st.session_state: st.session_state["lc_session"]  = ""
+if "lc_csrf"     not in st.session_state: st.session_state["lc_csrf"]     = ""
+if "page"        not in st.session_state: st.session_state["page"]        = "🏠  Dashboard"
 
+NAV_ITEMS = [
+    "🏠  Dashboard",
+    "🔄  Sync from LeetCode",
+    "📥  Import Queue",
+    "➕  Add Problem",
+    "🎯  Pick Problem",
+    "📝  Log Attempt",
+    "📊  Analytics",
+]
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
     <div style="padding:1rem 0 1.5rem 0;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:1.1rem;color:#58a6ff;font-weight:700;">⚡ LC Tracker</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:1.1rem;color:#58a6ff;font-weight:700;">⚡ LeetCode Tracker</div>
         <div style="font-size:0.75rem;color:#484f58;margin-top:2px;">leetcode practice log</div>
     </div>
     """, unsafe_allow_html=True)
 
-    page = st.radio("Navigate", [
-        "🏠  Dashboard",
-        "🔄  Sync from LeetCode",
-        "📥  Import Queue",
-        "➕  Add Problem",
-        "🎯  Pick Problem",
-        "📝  Log Attempt"
-    ], label_visibility="collapsed")
+    for item in NAV_ITEMS:
+        is_active = st.session_state["page"] == item
+        css_class = "nav-btn-active" if is_active else "nav-btn"
+        with st.container():
+            st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
+            if st.button(item, key=f"nav_{item}", use_container_width=True):
+                st.session_state["page"] = item
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
+    page = st.session_state["page"]
     problems = db.get_all_problems()
     attempts = db.get_all_attempts()
     qcounts  = sync.get_queue_counts()
@@ -110,7 +150,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown(f"""
-    <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">Quick Stats</div>
+    <div style="font-size:0.75rem;color:#58a6ff;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">Quick Stats</div>
     <div style="font-size:0.88rem;color:#8b949e;">
         🗂️ &nbsp;{len(problems)} problems tracked<br>
         📋 &nbsp;{len(attempts)} total attempts<br>
