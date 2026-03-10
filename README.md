@@ -17,7 +17,7 @@ This tool fixes that by keeping a full history of every attempt — not just whe
 
 ## Architecture
 
-The app is split into 3 modules:
+The app is split into four modules:
 
 **`database.py`** handles all SQLite interactions. There are two tables — `problems` for static problem metadata (number, title, link) and `problem_attempts` for every attempt ever logged. Attempts are append-only, meaning nothing is ever updated or deleted. Each attempt is a new row with its own date, bucket, result, solve time, and notes.
 
@@ -32,3 +32,20 @@ The append-only event log is the core design decision. Rather than storing a sin
 ```
 problems
   problem_id, leetcode_number, title, link, created_date
+
+problem_attempts
+  attempt_id, problem_id, attempt_date, bucket, result, solve_time, notes
+```
+
+## Running Locally
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+The database file (`leetcode_tracker.db`) is created automatically on first run in the same directory.
+
+## LeetCode Sync Setup
+
+The sync feature requires your LeetCode session cookies. Log into leetcode.com, open browser DevTools, go to Application > Cookies, and copy the values for `LEETCODE_SESSION` and `csrftoken`. Paste them into the Sync page. Credentials are only held in memory for the session and never written to disk.
