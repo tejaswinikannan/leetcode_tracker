@@ -120,7 +120,6 @@ NAV_ITEMS = [
     "➕  Add Problem",
     "🎯  Pick Problem",
     "📝  Log Attempt",
-    "📊  Analytics",
 ]
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -411,12 +410,12 @@ elif page == "🎯  Pick Problem":
     with col_info:
         st.markdown("""
         <div class="info-box" style="margin-top:3rem;">
-            <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.75rem;">Algorithm</div>
+            <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.75rem;">How It Works</div>
             <div style="font-size:0.83rem;color:#8b949e;line-height:1.7;">
                 1. Filter by bucket<br>
-                2. Sort by days since last attempt<br>
-                3. Take top 5 most neglected<br>
-                4. Randomly pick one 🎲
+                2. Score each problem<br>
+                3. Take top 5 candidates<br>
+                4. Weighted random pick 🎲
             </div>
         </div>
         """, unsafe_allow_html=True)
