@@ -22,14 +22,19 @@ def init_sync_table():
             title_slug      TEXT NOT NULL,
             link            TEXT NOT NULL,
             submission_date TEXT NOT NULL,
-            lc_status       TEXT NOT NULL,   -- 'Accepted' etc from LeetCode
+            lc_status       TEXT NOT NULL,
             runtime         TEXT,
             language        TEXT,
+            difficulty      TEXT DEFAULT 'Medium',
             fetched_at      TEXT NOT NULL,
             status          TEXT NOT NULL DEFAULT 'pending'
                             CHECK(status IN ('pending','imported','skipped'))
         )
     """)
+    # Migration for existing sync_queue tables
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(sync_queue)").fetchall()]
+    if "difficulty" not in cols:
+        conn.execute("ALTER TABLE sync_queue ADD COLUMN difficulty TEXT DEFAULT 'Medium'")
     conn.commit()
     conn.close()
 
@@ -54,6 +59,7 @@ query problemInfo($titleSlug: String!) {
     questionFrontendId
     title
     titleSlug
+    difficulty
   }
 }
 """
@@ -86,15 +92,17 @@ def fetch_recent_accepted(username: str, session_cookie: str, csrf_token: str, l
 
 
 def fetch_problem_number(title_slug: str, session_cookie: str, csrf_token: str) -> int | None:
-    """Look up a problem's frontend number by its title slug."""
+    """Look up a problem's frontend number and difficulty by its title slug.
+    Returns (lc_number, difficulty) or (None, 'Medium') on failure.
+    """
     try:
         data = _graphql(PROBLEM_QUERY, {"titleSlug": title_slug}, session_cookie, csrf_token)
         q = data.get("data", {}).get("question")
         if q:
-            return int(q["questionFrontendId"])
+            return int(q["questionFrontendId"]), q.get("difficulty", "Medium")
     except Exception:
         pass
-    return None
+    return None, "Medium"
 
 
 def queue_new_submissions(username: str, session_cookie: str, csrf_token: str, limit: int = 20) -> int:
@@ -125,8 +133,8 @@ def queue_new_submissions(username: str, session_cookie: str, csrf_token: str, l
         if exists:
             continue
 
-        # Get problem number (may require extra API call)
-        lc_num = fetch_problem_number(title_slug, session_cookie, csrf_token)
+        # Get problem number + difficulty (extra API call per new problem)
+        lc_num, difficulty = fetch_problem_number(title_slug, session_cookie, csrf_token)
         if lc_num is None:
             continue
 
@@ -146,10 +154,10 @@ def queue_new_submissions(username: str, session_cookie: str, csrf_token: str, l
         conn.execute(
             """INSERT INTO sync_queue
                (leetcode_number, title, title_slug, link, submission_date,
-                lc_status, runtime, language, fetched_at)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
+                lc_status, runtime, language, difficulty, fetched_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (lc_num, title, title_slug, link, sub_date,
-             "Accepted", runtime, lang, date.today().isoformat())
+             "Accepted", runtime, lang, difficulty, date.today().isoformat())
         )
         added += 1
 

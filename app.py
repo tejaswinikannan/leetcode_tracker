@@ -4,6 +4,7 @@ from datetime import date, datetime
 import database as db
 import picker as pk
 import leetcode_sync as sync
+import config as cfg
 
 # ── Init ────────────────────────────────────────────────────────────────────
 db.init_db()
@@ -31,31 +32,40 @@ section[data-testid="stSidebar"] {
     background: #010409 !important;
     border-right: 1px solid #21262d;
 }
-/* Nav buttons */
-div[data-testid="stSidebar"] .nav-btn button {
+
+/* Kill ALL gaps between sidebar elements */
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+    gap: 0rem !important;
+}
+section[data-testid="stSidebar"] .stButton {
+    margin-bottom: 0 !important;
+}
+section[data-testid="stSidebar"] .stButton > button {
+    margin: 0 !important;
+    padding: 0.38rem 0.85rem !important;
     background: transparent !important;
     border: none !important;
-    border-radius: 8px !important;
-    color: #8b949e !important;
+    border-left: 3px solid transparent !important;
+    border-radius: 0 !important;
+    color: #6e7681 !important;
     font-family: 'Space Grotesk', sans-serif !important;
     font-size: 0.88rem !important;
     font-weight: 400 !important;
     text-align: left !important;
     width: 100% !important;
-    padding: 0.35rem 0.85rem !important;
-    margin-bottom: 2px !important;
     transition: background 0.15s, color 0.15s !important;
     box-shadow: none !important;
+    line-height: 1.5 !important;
 }
-div[data-testid="stSidebar"] .nav-btn button:hover {
+section[data-testid="stSidebar"] .stButton > button:hover {
     background: #161b22 !important;
     color: #e6edf3 !important;
-    border: none !important;
+    border-left: 3px solid #30363d !important;
+    border-radius: 0 !important;
 }
-div[data-testid="stSidebar"] .nav-btn-active button {
-    background: #1f2937 !important;
+section[data-testid="stSidebar"] .stButton > button:focus:not(:active) {
+    background: #1a2332 !important;
     border-left: 3px solid #58a6ff !important;
-    border-radius: 0 8px 8px 0 !important;
     color: #58a6ff !important;
     font-weight: 600 !important;
 }
@@ -77,6 +87,9 @@ div[data-testid="stSidebar"] .nav-btn-active button {
 .badge-learning   { background: #7c2d12; color: #fdba74; border: 1px solid #9a3412; }
 .badge-practicing { background: #1e3a5f; color: #93c5fd; border: 1px solid #1d4ed8; }
 .badge-mastered   { background: #14532d; color: #86efac; border: 1px solid #15803d; }
+.badge-easy   { background: #14532d; color: #86efac; border: 1px solid #15803d; }
+.badge-medium { background: #451a03; color: #fcd34d; border: 1px solid #92400e; }
+.badge-hard   { background: #450a0a; color: #fca5a5; border: 1px solid #991b1b; }
 
 .pick-card { background: linear-gradient(135deg, #161b22 0%, #0d1117 100%); border: 1px solid #30363d; border-radius: 16px; padding: 2rem 2.5rem; margin: 1rem 0; position: relative; overflow: hidden; }
 .pick-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #58a6ff, #3b82f6, #00b4d8); }
@@ -107,11 +120,17 @@ div[data-baseweb="select"] > div { background: #161b22 !important; border-color:
 """, unsafe_allow_html=True)
 
 
-# ── Session state defaults ───────────────────────────────────────────────────
-if "lc_username" not in st.session_state: st.session_state["lc_username"] = ""
-if "lc_session"  not in st.session_state: st.session_state["lc_session"]  = ""
-if "lc_csrf"     not in st.session_state: st.session_state["lc_csrf"]     = ""
+# ── Session state defaults — load from saved config if available ─────────────
+_saved = cfg.load_config()
+if "lc_username" not in st.session_state: st.session_state["lc_username"] = _saved.get("username", "")
+if "lc_session"  not in st.session_state: st.session_state["lc_session"]  = _saved.get("session", "")
+if "lc_csrf"     not in st.session_state: st.session_state["lc_csrf"]     = _saved.get("csrf", "")
 if "page"        not in st.session_state: st.session_state["page"]        = "🏠  Dashboard"
+
+# Clear stale picked state from old bucket-based system
+if "picked_bucket" in st.session_state:
+    del st.session_state["picked_bucket"]
+    st.session_state.pop("picked", None)
 
 NAV_ITEMS = [
     "🏠  Dashboard",
@@ -120,28 +139,47 @@ NAV_ITEMS = [
     "➕  Add Problem",
     "🎯  Pick Problem",
     "📝  Log Attempt",
+    "📊  Analytics",
 ]
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
-    <div style="padding:1rem 0 1.5rem 0;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:1.1rem;color:#58a6ff;font-weight:700;">⚡ LeetCode Tracker</div>
+    <div style="padding:1rem 0 1rem 0;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:1.1rem;color:#58a6ff;font-weight:700;">⚡ LC Tracker</div>
         <div style="font-size:0.75rem;color:#484f58;margin-top:2px;">leetcode practice log</div>
     </div>
     """, unsafe_allow_html=True)
 
+    # Inject per-button active CSS based on current page
+    active_page = st.session_state["page"]
+    active_key  = f"nav_{active_page}"
+    st.markdown(f"""
+    <style>
+    [data-testid="stSidebar"] [key="{active_key}"] button,
+    [data-testid="stSidebar"] button[kind="secondary"][data-testid="{active_key}"] {{
+        background: #1a2332 !important;
+        border-left: 3px solid #58a6ff !important;
+        color: #58a6ff !important;
+        font-weight: 600 !important;
+    }}
+    /* Target active button by aria-label as fallback */
+    [data-testid="stSidebar"] .stButton:has(button[aria-label="{active_page}"]) button {{
+        background: #1a2332 !important;
+        border-left: 3px solid #58a6ff !important;
+        color: #58a6ff !important;
+        font-weight: 600 !important;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
     for item in NAV_ITEMS:
-        is_active = st.session_state["page"] == item
-        css_class = "nav-btn-active" if is_active else "nav-btn"
-        with st.container():
-            st.markdown(f'<div class="{css_class}">', unsafe_allow_html=True)
-            if st.button(item, key=f"nav_{item}", use_container_width=True):
-                st.session_state["page"] = item
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+        if st.button(item, key=f"nav_{item}", use_container_width=True):
+            st.session_state["page"] = item
+            st.rerun()
 
     page = st.session_state["page"]
+
     problems = db.get_all_problems()
     attempts = db.get_all_attempts()
     qcounts  = sync.get_queue_counts()
@@ -149,7 +187,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown(f"""
-    <div style="font-size:0.75rem;color:#58a6ff;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">Quick Stats</div>
+    <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem;">Quick Stats</div>
     <div style="font-size:0.88rem;color:#8b949e;">
         🗂️ &nbsp;{len(problems)} problems tracked<br>
         📋 &nbsp;{len(attempts)} total attempts<br>
@@ -162,6 +200,10 @@ with st.sidebar:
 def bucket_badge(bucket):
     cls = {"Learning":"learning","Practicing":"practicing","Mastered":"mastered"}.get(bucket,"learning")
     return f'<span class="badge badge-{cls}">{bucket}</span>'
+
+def difficulty_badge(difficulty: str) -> str:
+    cls = {"Easy": "easy", "Medium": "medium", "Hard": "hard"}.get(difficulty, "medium")
+    return f'<span class="badge badge-{cls}">{difficulty}</span>'
 
 def result_color(r):
     return {"solved":"#22c55e","failed":"#f87171","partial":"#fbbf24"}.get(r,"#8b949e")
@@ -185,7 +227,8 @@ if page == "🏠  Dashboard":
         st.markdown('<div class="section-label">All Problems</div>', unsafe_allow_html=True)
         for _, row in df.sort_values("leetcode_number").iterrows():
             last = row["last_attempt_date"] if row["last_attempt_date"] != "1970-01-01" else "Never"
-            st.markdown(f'<div class="problem-row"><span class="num">#{int(row["leetcode_number"])}</span><span class="title">{row["title"]}</span>{bucket_badge(row["bucket"])}<span style="font-size:0.78rem;color:#484f58;margin-left:1rem;">Last: {last}</span></div>', unsafe_allow_html=True)
+            diff = row.get("difficulty", "Medium") or "Medium"
+            st.markdown(f'<div class="problem-row"><span class="num">#{int(row["leetcode_number"])}</span><span class="title">{row["title"]}</span>{difficulty_badge(diff)} &nbsp; {bucket_badge(row["bucket"])}<span style="font-size:0.78rem;color:#484f58;margin-left:1rem;">Last: {last}</span></div>', unsafe_allow_html=True)
     else:
         st.info("No problems tracked yet. Use **Sync from LeetCode** or **Add Problem** to get started!")
 
@@ -197,38 +240,74 @@ elif page == "🔄  Sync from LeetCode":
     st.markdown('<div class="page-header"><h1>Sync from LeetCode</h1><p>Pull your recent accepted submissions automatically</p></div>', unsafe_allow_html=True)
 
     col_form, col_help = st.columns([3, 2])
+    credentials_saved = cfg.config_exists()
 
     with col_form:
-        st.markdown('<div class="section-label">LeetCode Credentials</div>', unsafe_allow_html=True)
+        if credentials_saved:
+            # ── Credentials already saved — show compact status ──────────────
+            saved = cfg.load_config()
+            st.markdown(f"""
+            <div class="info-box" style="margin-bottom:1.5rem;">
+                <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.6rem;">Saved Credentials</div>
+                <div style="font-size:0.88rem;color:#e6edf3;">
+                    <span style="color:#22c55e;">●</span> &nbsp;
+                    Logged in as <strong>{saved['username']}</strong>
+                </div>
+                <div style="font-size:0.78rem;color:#484f58;margin-top:0.4rem;">
+                    Cookies are saved locally and loaded automatically each session.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        username = st.text_input("LeetCode Username", value=st.session_state["lc_username"], placeholder="your_username")
-        session_cookie = st.text_input("LEETCODE_SESSION cookie", value=st.session_state["lc_session"], type="password", placeholder="eyJ0eXAiOiJKV1Qi...")
-        csrf_token = st.text_input("csrftoken cookie", value=st.session_state["lc_csrf"], type="password", placeholder="abc123xyz...")
+            limit = st.slider("How many recent submissions to check", 5, 20, 10)
 
-        if st.button("💾  Save Credentials", use_container_width=True):
-            st.session_state["lc_username"] = username
-            st.session_state["lc_session"]  = session_cookie
-            st.session_state["lc_csrf"]     = csrf_token
-            st.success("Credentials saved for this session.")
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                if st.button("🔄  Sync Now", type="primary", use_container_width=True):
+                    with st.spinner("Fetching from LeetCode..."):
+                        try:
+                            added = sync.queue_new_submissions(
+                                saved["username"], saved["session"], saved["csrf"], limit
+                            )
+                            if added > 0:
+                                st.success(f"✅ {added} new submission(s) added to the Import Queue!")
+                                st.info("Head to **📥 Import Queue** to review and import them.")
+                            else:
+                                st.info("No new submissions found. Everything is already tracked or queued.")
+                        except Exception as e:
+                            st.error(f"Sync failed: {e}\n\nYour cookies may have expired — click 'Update Credentials' to re-enter them.")
+            with c2:
+                if st.button("Update", use_container_width=True):
+                    cfg.clear_config()
+                    st.session_state["lc_username"] = ""
+                    st.session_state["lc_session"]  = ""
+                    st.session_state["lc_csrf"]     = ""
+                    st.rerun()
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        else:
+            # ── No saved credentials — show setup form ───────────────────────
+            st.markdown('<div class="section-label">LeetCode Credentials</div>', unsafe_allow_html=True)
 
-        limit = st.slider("How many recent submissions to check", 5, 20, 10)
+            username       = st.text_input("LeetCode Username",        value=st.session_state["lc_username"], placeholder="your_username")
+            session_cookie = st.text_input("LEETCODE_SESSION cookie",  value=st.session_state["lc_session"],  type="password", placeholder="eyJ0eXAiOiJKV1Qi...")
+            csrf_token     = st.text_input("csrftoken cookie",         value=st.session_state["lc_csrf"],     type="password", placeholder="abc123xyz...")
 
-        if st.button("🔄  Sync Now", type="primary", use_container_width=True):
-            if not username or not session_cookie or not csrf_token:
-                st.error("Please fill in all three credential fields.")
-            else:
-                with st.spinner("Fetching from LeetCode..."):
-                    try:
-                        added = sync.queue_new_submissions(username, session_cookie, csrf_token, limit)
-                        if added > 0:
-                            st.success(f"✅ {added} new submission(s) added to the Import Queue!")
-                            st.info("Head to **📥 Import Queue** to review and import them.")
-                        else:
-                            st.info("No new submissions found. Everything is already tracked or queued.")
-                    except Exception as e:
-                        st.error(f"Sync failed: {e}\n\nDouble-check your cookies (see help on the right).")
+            if st.button("💾  Save & Sync", type="primary", use_container_width=True):
+                if not username or not session_cookie or not csrf_token:
+                    st.error("Please fill in all three fields.")
+                else:
+                    cfg.save_config(username, session_cookie, csrf_token)
+                    st.session_state["lc_username"] = username
+                    st.session_state["lc_session"]  = session_cookie
+                    st.session_state["lc_csrf"]     = csrf_token
+                    with st.spinner("Fetching from LeetCode..."):
+                        try:
+                            added = sync.queue_new_submissions(username, session_cookie, csrf_token, 10)
+                            st.success(f"Credentials saved. {added} new submission(s) queued!" if added > 0 else "Credentials saved. No new submissions found.")
+                            st.rerun()
+                        except Exception as e:
+                            cfg.clear_config()
+                            st.error(f"Sync failed — credentials not saved: {e}")
 
     with col_help:
         st.markdown("""
@@ -244,8 +323,9 @@ elif page == "🔄  Sync from LeetCode":
                 5. Find <code style="color:#58a6ff;">csrftoken</code> — copy the value<br>
                 6. Paste both above
             </div>
-            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #21262d;font-size:0.78rem;color:#484f58;">
-                🔒 Credentials are only stored in memory for this session and never written to disk.
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #21262d;font-size:0.78rem;color:#484f58;line-height:1.6;">
+                Credentials are saved to <code>.lc_config.json</code> in the project folder.
+                Add this file to your <code>.gitignore</code> before pushing to GitHub.
             </div>
         </div>
         <div class="info-box" style="margin-top:1rem;">
@@ -285,7 +365,8 @@ elif page == "📥  Import Queue":
                     <div class="qmeta">
                         Submitted: {item['submission_date']} &nbsp;·&nbsp;
                         {item['language']} &nbsp;·&nbsp;
-                        {item['runtime'] or '—'}
+                        {item['runtime'] or '—'} &nbsp;·&nbsp;
+                        {item.get('difficulty','Medium') or 'Medium'}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -307,7 +388,7 @@ elif page == "📥  Import Queue":
                         if existing:
                             pid = existing["problem_id"]
                         else:
-                            pid = db.add_problem(item["leetcode_number"], item["title"], item["link"])
+                            pid = db.add_problem(item["leetcode_number"], item["title"], item["link"], item.get("difficulty","Medium") or "Medium")
 
                         db.log_attempt(
                             pid, bucket, result,
@@ -338,6 +419,7 @@ elif page == "➕  Add Problem":
         title  = st.text_input("Problem Title", placeholder="e.g. Sliding Window Maximum")
         auto_link = f"https://leetcode.com/problems/{title.lower().replace(' ','-')}/" if title else ""
         link   = st.text_input("Problem URL", value=auto_link)
+        difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], index=1)
         st.markdown('<div class="section-label">First Attempt</div>', unsafe_allow_html=True)
         bucket = st.selectbox("Initial Bucket", ["Learning","Practicing","Mastered"])
         result = st.selectbox("Result", ["solved","partial","failed"])
@@ -352,7 +434,7 @@ elif page == "➕  Add Problem":
             elif db.problem_number_exists(int(lc_num)):
                 st.error(f"LeetCode #{int(lc_num)} is already tracked.")
             else:
-                pid = db.add_problem(int(lc_num), title.strip(), link.strip())
+                pid = db.add_problem(int(lc_num), title.strip(), link.strip(), difficulty)
                 db.log_attempt(pid, bucket, result, solve_time=int(solve_time) if solve_time else None, notes=notes.strip() or None)
                 st.success(f"✅ Added **#{int(lc_num)} – {title}**!")
                 st.balloons()
@@ -372,37 +454,83 @@ elif page == "➕  Add Problem":
 # PICK PROBLEM
 # ════════════════════════════════════════════════════════════
 elif page == "🎯  Pick Problem":
-    st.markdown('<div class="page-header"><h1>Pick a Problem</h1><p>Smart picker finds your next practice problem</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-header"><h1>Pick a Problem</h1><p>Smart picker scores every problem across difficulty, recency, results and history</p></div>', unsafe_allow_html=True)
 
-    BUCKET_DESC = {
-        "Learning":   ("🔥 Challenge Mode", "Push through problems still learning"),
-        "Practicing": ("💪 Steady Grind",   "Reinforce patterns you've started to master"),
-        "Mastered":   ("😌 Chill Mode",      "Review problems you've already nailed"),
+    # ── DEBUG panel ──────────────────────────────────────────────────────────
+    # with st.expander("🐛 Debug — scores & session state"):
+    #     import pandas as pd
+    #     scores_df = pk.compute_scores()
+    #     st.write("**Session state picked:**", st.session_state.get("picked"))
+    #     st.write("**Session state picked_mode:**", st.session_state.get("picked_mode"))
+    #     if scores_df.empty:
+    #         st.warning("compute_scores() returned empty — no problems in DB?")
+    #     else:
+    #         display = scores_df[["leetcode_number","title","difficulty","bucket","score","mode","last_result","failure_rate","days_since"]].copy()
+    #         display["score"] = display["score"].round(3)
+    #         display["failure_rate"] = display["failure_rate"].round(2)
+    #         st.dataframe(display, use_container_width=True, hide_index=True)
+
+    MODE_META = {
+        "challenge": {
+            "label":    "🔥  Challenge Mode",
+            "desc":     "High-scoring problems — hard, frequently failed, or long untouched.",
+            "key":      "challenge",
+            "color":    "#f87171",
+        },
+        "grind": {
+            "label":    "💪  Steady Grind",
+            "desc":     "Mid-range problems — a balanced mix to keep you sharp.",
+            "key":      "grind",
+            "color":    "#60a5fa",
+        },
+        "chill": {
+            "label":    "😌  Chill Mode",
+            "desc":     "Low-pressure problems — easier, well-practiced, recently solved.",
+            "key":      "chill",
+            "color":    "#86efac",
+        },
     }
 
     col_pick, col_info = st.columns([3, 2])
     with col_pick:
-        bucket_choice = st.radio("Bucket", ["Learning","Practicing","Mastered"],
-            format_func=lambda b: f"{BUCKET_DESC[b][0]} — {b}", label_visibility="collapsed")
-        st.markdown(f'<div style="font-size:0.85rem;color:#8b949e;margin-bottom:1rem;">{BUCKET_DESC[bucket_choice][1]}</div>', unsafe_allow_html=True)
+        mode_choice = st.radio(
+            "Mode",
+            list(MODE_META.keys()),
+            format_func=lambda m: MODE_META[m]["label"],
+            label_visibility="collapsed",
+        )
+        st.markdown(
+            f'<div style="font-size:0.85rem;color:#8b949e;margin-bottom:1rem;">{MODE_META[mode_choice]["desc"]}</div>',
+            unsafe_allow_html=True,
+        )
 
         if st.button("🎲  Pick a Problem", type="primary", use_container_width=True):
-            st.session_state["picked"] = pk.pick_problem(bucket_choice)
-            st.session_state["picked_bucket"] = bucket_choice
+            last_id = st.session_state.get("picked")
+            last_id = last_id.get("problem_id") if isinstance(last_id, dict) and last_id else None
+            st.session_state["picked"]      = pk.pick_problem(mode_choice, exclude_id=last_id)
+            st.session_state["picked_mode"] = mode_choice
 
     if "picked" in st.session_state:
         p = st.session_state["picked"]
         if p is None:
-            st.warning(f"No problems in **{st.session_state['picked_bucket']}** bucket yet.")
+            st.warning("No problems available for this mode yet. Add more problems or log more attempts.")
         else:
-            days = int(p.get("days_since", 0))
-            last_raw = p.get("last_attempt_date","1970-01-01")
-            last_str = "Never practiced" if last_raw == "1970-01-01" else f"Last: {last_raw}"
+            days      = int(p.get("days_since", 0))
+            last_raw  = p.get("last_attempt_date", "1970-01-01")
+            last_str  = "Never practiced" if last_raw == "1970-01-01" else f"Last: {last_raw}"
+            diff      = p.get("difficulty", "Medium") or "Medium"
+            mode_color = MODE_META.get(st.session_state.get("picked_mode","grind"), {}).get("color","#8b949e")
+
             st.markdown(f"""
             <div class="pick-card">
                 <div class="problem-num">LeetCode #{int(p['leetcode_number'])}</div>
                 <div class="problem-title">{p['title']}</div>
-                <div class="meta">{bucket_badge(p['bucket'])} &nbsp; {last_str} &nbsp; <span style="color:#484f58;">• {days}d ago</span></div>
+                <div class="meta">
+                    {difficulty_badge(diff)} &nbsp;
+                    {bucket_badge(p['bucket'])} &nbsp;
+                    {last_str} &nbsp;
+                    <span style="color:#484f58;">• {days}d ago</span>
+                </div>
             </div>
             """, unsafe_allow_html=True)
             st.link_button("🔗  Open on LeetCode", p["link"], use_container_width=True)
@@ -410,12 +538,19 @@ elif page == "🎯  Pick Problem":
     with col_info:
         st.markdown("""
         <div class="info-box" style="margin-top:3rem;">
-            <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.75rem;">How It Works</div>
-            <div style="font-size:0.83rem;color:#8b949e;line-height:1.7;">
-                1. Filter by bucket<br>
-                2. Score each problem<br>
-                3. Take top 5 candidates<br>
-                4. Weighted random pick 🎲
+            <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.75rem;">How Scoring Works</div>
+            <div style="font-size:0.82rem;color:#8b949e;line-height:1.9;">
+                Every problem gets a global score based on multiple factors like last solved date, difficulty level etc.<br>
+                <!-- <span style="color:#e6edf3;">30%</span> Last result<br>
+                 <span style="color:#e6edf3;">25%</span> Historical fail rate<br>
+                 <span style="color:#e6edf3;">20%</span> Difficulty<br>
+                 <span style="color:#e6edf3;">15%</span> Recency<br>
+                 <span style="color:#e6edf3;">10%</span> Avg solve time -->
+            </div>
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #21262d;font-size:0.78rem;color:#484f58;line-height:1.8;">
+                <span style="color:#f87171;">●</span> Challenge  — score ≥ 0.67<br>
+                <span style="color:#60a5fa;">●</span> Steady Grind — 0.33–0.67<br>
+                <span style="color:#86efac;">●</span> Chill Mode  — score &lt; 0.33
             </div>
         </div>
         """, unsafe_allow_html=True)

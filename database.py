@@ -21,7 +21,8 @@ def init_db():
             leetcode_number INTEGER NOT NULL,
             title           TEXT NOT NULL,
             link            TEXT NOT NULL,
-            created_date    TEXT NOT NULL
+            created_date    TEXT NOT NULL,
+            difficulty      TEXT DEFAULT 'Medium'
         );
 
         CREATE TABLE IF NOT EXISTS problem_attempts (
@@ -34,16 +35,22 @@ def init_db():
             notes        TEXT
         );
     """)
+
+    # Migration: add difficulty to existing DBs that don't have it yet
+    cols = [row[1] for row in c.execute("PRAGMA table_info(problems)").fetchall()]
+    if "difficulty" not in cols:
+        c.execute("ALTER TABLE problems ADD COLUMN difficulty TEXT DEFAULT 'Medium'")
+
     conn.commit()
     conn.close()
 
 
-def add_problem(leetcode_number: int, title: str, link: str) -> int:
+def add_problem(leetcode_number: int, title: str, link: str, difficulty: str = "Medium") -> int:
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO problems (leetcode_number, title, link, created_date) VALUES (?,?,?,?)",
-        (leetcode_number, title, link, date.today().isoformat()),
+        "INSERT INTO problems (leetcode_number, title, link, created_date, difficulty) VALUES (?,?,?,?,?)",
+        (leetcode_number, title, link, date.today().isoformat(), difficulty),
     )
     problem_id = c.lastrowid
     conn.commit()
