@@ -139,16 +139,15 @@ NAV_ITEMS = [
     "➕  Add Problem",
     "🎯  Pick Problem",
     "📝  Log Attempt",
-    "📊  Analytics",
+    # "📊  Analytics",
 ]
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
     <div style="padding:1rem 0 1rem 0;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:1.1rem;color:#58a6ff;font-weight:700;">⚡ LC Tracker</div>
-        <div style="font-size:0.75rem;color:#484f58;margin-top:2px;">leetcode practice log</div>
-    </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:1.1rem;color:#58a6ff;font-weight:700;">⚡ LeetCode Tracker</div>
+      </div>
     """, unsafe_allow_html=True)
 
     # Inject per-button active CSS based on current page
@@ -510,6 +509,9 @@ elif page == "🎯  Pick Problem":
             st.session_state["picked"]      = pk.pick_problem(mode_choice, exclude_id=last_id)
             st.session_state["picked_mode"] = mode_choice
 
+    with col_info:
+        st.image("https://leetcode.com/static/images/LeetCode_logo.png", width=150)
+
     if "picked" in st.session_state:
         p = st.session_state["picked"]
         if p is None:
@@ -535,25 +537,25 @@ elif page == "🎯  Pick Problem":
             """, unsafe_allow_html=True)
             st.link_button("🔗  Open on LeetCode", p["link"], use_container_width=True)
 
-    with col_info:
-        st.markdown("""
-        <div class="info-box" style="margin-top:3rem;">
-            <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.75rem;">How Scoring Works</div>
-            <div style="font-size:0.82rem;color:#8b949e;line-height:1.9;">
-                Every problem gets a global score based on multiple factors like last solved date, difficulty level etc.<br>
-                <!-- <span style="color:#e6edf3;">30%</span> Last result<br>
-                 <span style="color:#e6edf3;">25%</span> Historical fail rate<br>
-                 <span style="color:#e6edf3;">20%</span> Difficulty<br>
-                 <span style="color:#e6edf3;">15%</span> Recency<br>
-                 <span style="color:#e6edf3;">10%</span> Avg solve time -->
-            </div>
-            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #21262d;font-size:0.78rem;color:#484f58;line-height:1.8;">
-                <span style="color:#f87171;">●</span> Challenge  — score ≥ 0.67<br>
-                <span style="color:#60a5fa;">●</span> Steady Grind — 0.33–0.67<br>
-                <span style="color:#86efac;">●</span> Chill Mode  — score &lt; 0.33
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # with col_info:
+    #     st.markdown("""
+    #     <div class="info-box" style="margin-top:3rem;">
+    #         <div style="font-size:0.75rem;color:#484f58;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.75rem;">How Scoring Works</div>
+    #         <div style="font-size:0.82rem;color:#8b949e;line-height:1.9;">
+    #             Every problem gets a global score based on multiple factors like last solved date, difficulty level etc.<br>
+    #             <!-- <span style="color:#e6edf3;">30%</span> Last result<br>
+    #              <span style="color:#e6edf3;">25%</span> Historical fail rate<br>
+    #              <span style="color:#e6edf3;">20%</span> Difficulty<br>
+    #              <span style="color:#e6edf3;">15%</span> Recency<br>
+    #              <span style="color:#e6edf3;">10%</span> Avg solve time -->
+    #         </div>
+    #         <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #21262d;font-size:0.78rem;color:#484f58;line-height:1.8;">
+    #             <span style="color:#f87171;">●</span> Challenge  — score ≥ 0.67<br>
+    #             <span style="color:#60a5fa;">●</span> Steady Grind — 0.33–0.67<br>
+    #             <span style="color:#86efac;">●</span> Chill Mode  — score &lt; 0.33
+    #         </div>
+    #     </div>
+    #     """, unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════

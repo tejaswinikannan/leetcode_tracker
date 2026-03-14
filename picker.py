@@ -16,7 +16,8 @@ Scoring factors (higher score = needs more attention):
   │ Historical failure rate  │  25%   │ fail_count / total_attempts            │
   │ Difficulty               │  20%   │ Hard=1.0, Medium=0.5, Easy=0.0        │
   │ Recency                  │  15%   │ days since last attempt, capped at 60  │
-  │ Avg solve time           │  10%   │ normalised across all problems         │
+  │ Avg solve time           │  10%   │ 1.0 if exceeds threshold (Easy:15m,    │
+  │                          │        │ Medium:30m, Hard:40m), else 0.0        │
   └──────────────────────────┴────────┴────────────────────────────────────────┘
 
 Each factor normalised to [0, 1] before weighting.
@@ -39,11 +40,14 @@ RESULT_PENALTY    = {"failed": 1.0, "partial": 0.5, "solved": 0.0}
 DIFFICULTY_SCORE  = {"Hard": 1.0, "Medium": 0.5, "Easy": 0.0}
 RECENCY_CAP       = 60  # days
 
+# ── Solve time thresholds (minutes) ─────────────────────────────────────────
+SOLVE_TIME_THRESHOLDS = {"Easy": 10, "Medium": 15, "Hard": 30}
+
 # ── Mode score thresholds ────────────────────────────────────────────────────
 MODE_THRESHOLDS = {
-    "challenge": (0.67, 1.01),   # top tier
-    "grind":     (0.33, 0.67),   # mid tier
-    "chill":     (0.00, 0.33),   # bottom tier
+    "challenge": (0.50, 1.01),   # top tier
+    "grind":     (0.30, 0.50),   # mid tier
+    "chill":     (0.00, 0.30),   # bottom tier
 }
 
 
@@ -155,7 +159,8 @@ def compute_scores() -> pd.DataFrame:
     if pd.isna(median_time):
         median_time = 0
     df["avg_solve_time_filled"] = df["avg_solve_time"].fillna(median_time)
-    df["score_solve_time"]      = _normalise(df["avg_solve_time_filled"])
+    df["time_threshold"] = df["difficulty"].map(SOLVE_TIME_THRESHOLDS).fillna(30)  # default to Medium
+    df["score_solve_time"] = (df["avg_solve_time_filled"] > df["time_threshold"]).astype(float)
 
     # ── Weighted final score ─────────────────────────────────────────────────
     df["score"] = (
