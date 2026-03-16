@@ -4,9 +4,9 @@ picker.py  —  Multi-factor smart problem picker
 Every problem is scored globally across five factors. The final score
 determines which mode the problem falls into:
 
-  Challenge Mode  — top tier    (score >= 0.67)
-  Steady Grind    — middle tier (score 0.33–0.67)
-  Chill Mode      — bottom tier (score < 0.33)
+  Challenge Mode  — top tier    (score >= 0.50)
+  Steady Grind    — middle tier (score 0.25–0.50)
+  Chill Mode      — bottom tier (score < 0.25)
 
 Scoring factors (higher score = needs more attention):
   ┌──────────────────────────┬────────┬────────────────────────────────────────┐
@@ -32,9 +32,9 @@ from database import get_connection
 # ── Weights (must sum to 1.0) ────────────────────────────────────────────────
 W_LAST_RESULT  = 0.30
 W_FAIL_RATE    = 0.25
-W_DIFFICULTY   = 0.20
+W_DIFFICULTY   = 0.25
 W_RECENCY      = 0.15
-W_SOLVE_TIME   = 0.10
+W_SOLVE_TIME   = 0.05
 
 RESULT_PENALTY    = {"failed": 1.0, "partial": 0.5, "solved": 0.0}
 DIFFICULTY_SCORE  = {"Hard": 1.0, "Medium": 0.5, "Easy": 0.0}
@@ -45,9 +45,9 @@ SOLVE_TIME_THRESHOLDS = {"Easy": 10, "Medium": 15, "Hard": 30}
 
 # ── Mode score thresholds ────────────────────────────────────────────────────
 MODE_THRESHOLDS = {
-    "challenge": (0.50, 1.01),   # top tier
-    "grind":     (0.30, 0.50),   # mid tier
-    "chill":     (0.00, 0.30),   # bottom tier
+    "challenge": (0.51, 1.01),   # top tier
+    "grind":     (0.25, 0.50),   # mid tier
+    "chill":     (0.00, 0.25),   # bottom tier
 }
 
 
@@ -173,8 +173,8 @@ def compute_scores() -> pd.DataFrame:
 
     # ── Assign mode tier ─────────────────────────────────────────────────────
     def _mode(score):
-        if score >= 0.67:   return "challenge"
-        elif score >= 0.33: return "grind"
+        if score >= 0.50:   return "challenge"
+        elif score >= 0.25: return "grind"
         else:               return "chill"
 
     df["mode"] = df["score"].apply(_mode)
