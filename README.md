@@ -1,12 +1,12 @@
 # LeetCode Practice Tracker
 
-A lightweight personal tool for tracking LeetCode problems, logging every attempt, and getting smart practice recommendations based on your history.
+A lightweight personal tool for tracking LeetCode problems, logging every attempt, and getting ML-driven practice recommendations based on your history.
 
 ## Why I Built This
 
 LeetCode has no built-in way to track how you're actually progressing on individual problems over time. You solve something, move on, and forget about it. A few weeks later you attempt it again and realize you've lost the intuition entirely.
 
-This tool fixes that by keeping a full history of every attempt — not just whether you've solved a problem, but how long it took, whether you failed it before, and how long it's been since you last touched it. That history then drives a smarter practice picker that decides what you should revisit next.
+This tool fixes that by keeping a full history of every attempt — not just whether you've solved a problem, but how long it took, whether you failed it before, and how long it's been since you last touched it. That history trains a model that predicts which problems you're likely to struggle with next, and uses that to decide what you should revisit.
 
 ## Tech Stack
 
@@ -14,6 +14,10 @@ This tool fixes that by keeping a full history of every attempt — not just whe
 - **SQLite** — local database, no server required, single file on disk
 - **Streamlit** — UI framework for building the web interface in Python
 - **Pandas** — data wrangling for scoring and analytics
+- **XGBoost** — gradient-boosted classifier powering the smart picker
+- **scikit-learn** — train/test splitting and metrics used to evaluate model choices
+- **Jupyter / ipykernel** — notebook environment for model experimentation (see `notebooks/`)
+- **Matplotlib / statsmodels** — supporting plots and stats in the model comparison notebook
 
 ## Architecture
 
@@ -21,9 +25,10 @@ The app is split into four modules:
 
 **`database.py`** handles all SQLite interactions. There are two tables — `problems` for static problem metadata (number, title, link) and `problem_attempts` for every attempt ever logged. Attempts are append-only, meaning nothing is ever updated or deleted. Each attempt is a new row with its own date, bucket, result, solve time, and notes.
 
-**`picker.py`** contains the smart recommendation logic. When you ask for a problem, it scores every problem in the selected bucket across four factors — how long since you last attempted it, what your last result was (failed/partial/solved), your historical failure rate on that problem, and your average solve time. Each factor is normalized to a 0–1 scale and combined into a weighted score. The top 5 by score become candidates, and one is picked at random weighted by score so higher-priority problems are more likely but not guaranteed. The last picked problem is excluded to prevent back-to-back repeats.
+**`picker.py`** contains the smart recommendation logic. It trains an XGBoost classifier fresh on your attempt history each time it runs, predicting the probability that your next attempt on a problem will be "failed" or "partial" rather than "solved." Every problem is scored globally and sorted into three tiers — **Challenge Mode** (score ≥ 0.50), **Steady Grind** (0.25–0.50), and **Chill Mode** (< 0.25). Within a tier, the top 5 candidates are picked at random weighted by score, and the last picked problem is excluded to prevent back-to-back repeats. When there isn't enough history yet to train a reliable model (fewer than 30 attempts), it falls back to a hand-weighted heuristic over last result, failure rate, difficulty, recency, and solve time.
 
 **`leetcode_sync.py`** handles automatic importing from LeetCode. It calls LeetCode's GraphQL API using your session cookies, fetches recent accepted submissions, and adds any new ones to a queue. From there you manually review each queued item, set the bucket and result, and import it — keeping you in control of the data rather than auto-importing everything blindly.
+
 
 ## Database Design
 
@@ -31,7 +36,7 @@ The append-only event log is the core design decision. Rather than storing a sin
 
 ```
 problems
-  problem_id, leetcode_number, title, link, created_date
+  problem_id, leetcode_number, title, link, created_date, difficulty, pattern
 
 problem_attempts
   attempt_id, problem_id, attempt_date, bucket, result, solve_time, notes
