@@ -5,6 +5,9 @@ import database as db
 import picker as pk
 import leetcode_sync as sync
 import config as cfg
+from patterns import PATTERNS
+
+PATTERN_PLACEHOLDER = "— Select —"
 
 # ── Init ────────────────────────────────────────────────────────────────────
 db.init_db()
@@ -137,6 +140,7 @@ NAV_ITEMS = [
     "🔄  Sync from LeetCode",
     "📥  Import Queue",
     "➕  Add Problem",
+    "🏷️  Tag Problems",
     "🎯  Pick Problem",
     "📝  Log Attempt",
     # "📊  Analytics",
@@ -370,12 +374,14 @@ elif page == "📥  Import Queue":
                 </div>
                 """, unsafe_allow_html=True)
 
-                col_b, col_r, col_t, col_n, col_imp, col_skip = st.columns([2, 2, 1.5, 3, 1.5, 1])
+                col_b, col_r, col_p, col_t, col_n, col_imp, col_skip = st.columns([1.5, 1.5, 2, 1.3, 2.2, 1.3, 1])
 
                 with col_b:
                     bucket = st.selectbox("Bucket", ["Learning","Practicing","Mastered"], key=f"bucket_{qid}")
                 with col_r:
                     result = st.selectbox("Result", ["solved","partial","failed"], key=f"result_{qid}")
+                with col_p:
+                    pattern = st.selectbox("Pattern", [PATTERN_PLACEHOLDER] + PATTERNS, key=f"pattern_{qid}", label_visibility="visible")
                 with col_t:
                     solve_time = st.number_input("Time (min)", min_value=0, step=1, value=0, key=f"time_{qid}", label_visibility="visible")
                 with col_n:
@@ -387,7 +393,11 @@ elif page == "📥  Import Queue":
                         if existing:
                             pid = existing["problem_id"]
                         else:
-                            pid = db.add_problem(item["leetcode_number"], item["title"], item["link"], item.get("difficulty","Medium") or "Medium")
+                            pid = db.add_problem(
+                                item["leetcode_number"], item["title"], item["link"],
+                                item.get("difficulty","Medium") or "Medium",
+                                pattern=pattern if pattern != PATTERN_PLACEHOLDER else None,
+                            )
 
                         db.log_attempt(
                             pid, bucket, result,
@@ -419,6 +429,7 @@ elif page == "➕  Add Problem":
         auto_link = f"https://leetcode.com/problems/{title.lower().replace(' ','-')}/" if title else ""
         link   = st.text_input("Problem URL", value=auto_link)
         difficulty = st.selectbox("Difficulty", ["Easy", "Medium", "Hard"], index=1)
+        pattern = st.selectbox("Pattern (optional)", [PATTERN_PLACEHOLDER] + PATTERNS)
         st.markdown('<div class="section-label">First Attempt</div>', unsafe_allow_html=True)
         bucket = st.selectbox("Initial Bucket", ["Learning","Practicing","Mastered"])
         result = st.selectbox("Result", ["solved","partial","failed"])
@@ -433,7 +444,8 @@ elif page == "➕  Add Problem":
             elif db.problem_number_exists(int(lc_num)):
                 st.error(f"LeetCode #{int(lc_num)} is already tracked.")
             else:
-                pid = db.add_problem(int(lc_num), title.strip(), link.strip(), difficulty)
+                pid = db.add_problem(int(lc_num), title.strip(), link.strip(), difficulty,
+                                      pattern=pattern if pattern != PATTERN_PLACEHOLDER else None)
                 db.log_attempt(pid, bucket, result, solve_time=int(solve_time) if solve_time else None, notes=notes.strip() or None)
                 st.success(f"✅ Added **#{int(lc_num)} – {title}**!")
                 st.balloons()
@@ -450,24 +462,70 @@ elif page == "➕  Add Problem":
 
 
 # ════════════════════════════════════════════════════════════
+# TAG PROBLEMS
+# ════════════════════════════════════════════════════════════
+elif page == "🏷️  Tag Problems":
+    st.markdown('<div class="page-header"><h1>Tag Problems</h1><p>Assign a coding pattern to each problem — used as a model feature</p></div>', unsafe_allow_html=True)
+
+    show_all = st.checkbox("Show already-tagged problems too", value=False)
+
+    all_problems = db.get_all_problems()
+    tagged_count = sum(1 for p in all_problems if p.get("pattern"))
+    st.markdown(f'<div style="font-size:0.85rem;color:#8b949e;margin-bottom:1rem;">{tagged_count} of {len(all_problems)} problems tagged</div>', unsafe_allow_html=True)
+
+    visible = all_problems if show_all else [p for p in all_problems if not p.get("pattern")]
+
+    if not visible:
+        st.success("✅ Every tracked problem has a pattern assigned!")
+    else:
+        options = [PATTERN_PLACEHOLDER] + PATTERNS
+
+        def _on_pattern_change(problem_id, key):
+            chosen = st.session_state[key]
+            db.set_problem_pattern(problem_id, chosen if chosen != PATTERN_PLACEHOLDER else None)
+
+        for p in visible:
+            col_info, col_sel = st.columns([3, 2])
+            with col_info:
+                st.markdown(f"""
+                <div class="queue-card">
+                    <div class="qnum">LeetCode #{p['leetcode_number']}</div>
+                    <div class="qtitle">{p['title']}</div>
+                    <div class="qmeta">{difficulty_badge(p.get('difficulty','Medium') or 'Medium')} &nbsp; <a href="{p['link']}" target="_blank" style="color:#58a6ff;">Open on LeetCode ↗</a></div>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_sel:
+                key = f"pattern_tag_{p['problem_id']}"
+                current = p.get("pattern") or PATTERN_PLACEHOLDER
+                st.selectbox(
+                    "Pattern", options,
+                    index=options.index(current) if current in options else 0,
+                    key=key,
+                    on_change=_on_pattern_change,
+                    args=(p["problem_id"], key),
+                    label_visibility="collapsed",
+                )
+
+
+# ════════════════════════════════════════════════════════════
 # PICK PROBLEM
 # ════════════════════════════════════════════════════════════
 elif page == "🎯  Pick Problem":
     st.markdown('<div class="page-header"><h1>Pick a Problem</h1><p>Smart picker scores every problem across difficulty, recency, results and history</p></div>', unsafe_allow_html=True)
 
     # ── DEBUG panel ──────────────────────────────────────────────────────────
-    # with st.expander("🐛 Debug — scores & session state"):
-    #     import pandas as pd
-    #     scores_df = pk.compute_scores()
-    #     st.write("**Session state picked:**", st.session_state.get("picked"))
-    #     st.write("**Session state picked_mode:**", st.session_state.get("picked_mode"))
-    #     if scores_df.empty:
-    #         st.warning("compute_scores() returned empty — no problems in DB?")
-    #     else:
-    #         display = scores_df[["leetcode_number","title","difficulty","bucket","score","mode","last_result","failure_rate","days_since"]].copy()
-    #         display["score"] = display["score"].round(3)
-    #         display["failure_rate"] = display["failure_rate"].round(2)
-    #         st.dataframe(display, use_container_width=True, hide_index=True)
+    with st.expander("🐛 Debug — scores & session state"):
+        import pandas as pd
+        scores_df = pk.compute_scores()
+        st.write("**Session state picked:**", st.session_state.get("picked"))
+        st.write("**Session state picked_mode:**", st.session_state.get("picked_mode"))
+        if scores_df.empty:
+            st.warning("compute_scores() returned empty — no problems in DB?")
+        else:
+            display = scores_df[["leetcode_number","title","difficulty","bucket","score","mode","last_result","failure_rate","days_since"]].copy()
+            display["score"] = display["score"].round(3)
+            display["failure_rate"] = display["failure_rate"].round(2)
+            st.dataframe(display, use_container_width=True, hide_index=True)
 
     MODE_META = {
         "challenge": {

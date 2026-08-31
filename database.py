@@ -40,22 +40,37 @@ def init_db():
     cols = [row[1] for row in c.execute("PRAGMA table_info(problems)").fetchall()]
     if "difficulty" not in cols:
         c.execute("ALTER TABLE problems ADD COLUMN difficulty TEXT DEFAULT 'Medium'")
+    if "pattern" not in cols:
+        c.execute("ALTER TABLE problems ADD COLUMN pattern TEXT")
 
     conn.commit()
     conn.close()
 
 
-def add_problem(leetcode_number: int, title: str, link: str, difficulty: str = "Medium") -> int:
+def add_problem(
+    leetcode_number: int,
+    title: str,
+    link: str,
+    difficulty: str = "Medium",
+    pattern: Optional[str] = None,
+) -> int:
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO problems (leetcode_number, title, link, created_date, difficulty) VALUES (?,?,?,?,?)",
-        (leetcode_number, title, link, date.today().isoformat(), difficulty),
+        "INSERT INTO problems (leetcode_number, title, link, created_date, difficulty, pattern) VALUES (?,?,?,?,?,?)",
+        (leetcode_number, title, link, date.today().isoformat(), difficulty, pattern),
     )
     problem_id = c.lastrowid
     conn.commit()
     conn.close()
     return problem_id
+
+
+def set_problem_pattern(problem_id: int, pattern: str):
+    conn = get_connection()
+    conn.execute("UPDATE problems SET pattern=? WHERE problem_id=?", (pattern, problem_id))
+    conn.commit()
+    conn.close()
 
 
 def log_attempt(
