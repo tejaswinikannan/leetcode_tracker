@@ -51,3 +51,4 @@ The database file (`leetcode_tracker.db`) is created automatically on first run 
 The sync feature requires your LeetCode session cookies. Log into leetcode.com, open browser DevTools, go to Application > Cookies, and copy the values for `LEETCODE_SESSION` and `csrftoken`. Paste them into the Sync page. Credentials are only held in memory for the session and never written to disk.
 
 ![Project Screenshot](images/screenshot.png)
+![Dashboard Screenshot](images/Dashboard.png)
